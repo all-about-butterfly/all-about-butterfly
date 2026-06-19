@@ -25,11 +25,22 @@ function useReveal() {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+
+    const reveal = () => el.classList.add('in-view');
+
+    // Already in (or near) the viewport on mount — don't wait on a scroll
+    // event that may never come.
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      reveal();
+      return;
+    }
+
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add('in-view');
+            reveal();
             io.unobserve(entry.target);
           }
         });
@@ -37,7 +48,15 @@ function useReveal() {
       { threshold: 0.1, rootMargin: '0px 0px -6% 0px' }
     );
     io.observe(el);
-    return () => io.disconnect();
+
+    // Safety net: never leave a section permanently invisible if the
+    // observer doesn't fire for some reason.
+    const fallback = window.setTimeout(reveal, 2000);
+
+    return () => {
+      io.disconnect();
+      window.clearTimeout(fallback);
+    };
   }, []);
   return ref;
 }
@@ -60,6 +79,7 @@ export default function ButterflyPage() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [shuffleOrder, setShuffleOrder] = useState<string[]>([]);
   const [selected, setSelected] = useState<Species | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
@@ -151,15 +171,49 @@ export default function ButterflyPage() {
               <span style={{ fontSize: 9.5, letterSpacing: '.34em', textTransform: 'uppercase', color: '#9a8a52', marginTop: 3 }}>ETSD · 2019</span>
             </span>
           </a>
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 30, fontSize: 13, letterSpacing: '.05em', color: '#4a4628' }}>
+          <nav className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: 30, fontSize: 13, letterSpacing: '.05em', color: '#4a4628' }}>
             <a href="#bo-suu-tap" className="nav-link" style={{ padding: '6px 0' }}>Bộ sưu tập</a>
             <a href="#dac-diem" className="nav-link" style={{ padding: '6px 0' }}>Đặc điểm</a>
             <a href="#ve-chung-toi" className="nav-link" style={{ padding: '6px 0' }}>Về chúng tôi</a>
           </nav>
-          <a href="#lien-he" className="btn-fill" style={{ background: INK, color: INK_FG, padding: '12px 22px', borderRadius: 2, fontSize: 11.5, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase' }}>
+          <a href="#lien-he" className="btn-fill header-cta" style={{ background: INK, color: INK_FG, padding: '12px 22px', borderRadius: 2, fontSize: 11.5, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase' }}>
             Liên hệ đặt mua
           </a>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}
+            aria-expanded={menuOpen}
+            className="menu-toggle"
+            style={{ appearance: 'none', cursor: 'pointer', background: 'transparent', border: `1px solid ${BORDER}`, borderRadius: 4, width: 42, height: 42, flex: '0 0 auto' }}
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={1.8} style={{ display: 'block', margin: '0 auto' }}>
+              {menuOpen ? (
+                <path d="M5 5l14 14M19 5L5 19" />
+              ) : (
+                <>
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </>
+              )}
+            </svg>
+          </button>
         </div>
+        {menuOpen && (
+          <nav className="mobile-menu">
+            <a href="#bo-suu-tap" onClick={() => setMenuOpen(false)}>Bộ sưu tập</a>
+            <a href="#dac-diem" onClick={() => setMenuOpen(false)}>Đặc điểm</a>
+            <a href="#ve-chung-toi" onClick={() => setMenuOpen(false)}>Về chúng tôi</a>
+            <a
+              href="#lien-he"
+              onClick={() => setMenuOpen(false)}
+              className="btn-fill"
+              style={{ background: INK, color: INK_FG, textAlign: 'center', padding: '12px 22px', borderRadius: 2, fontSize: 11.5, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase', marginTop: 8 }}
+            >
+              Liên hệ đặt mua
+            </a>
+          </nav>
+        )}
       </header>
 
       <a id="top" />
@@ -199,7 +253,7 @@ export default function ButterflyPage() {
                 Morpho amathonte <span style={{ color: '#9a8a52' }}>— Nam Mỹ</span>
               </figcaption>
             </figure>
-            <figure style={{ margin: 0, position: 'absolute', bottom: -46, left: -6, width: '48%', minWidth: 170, border: `1px solid ${INK}`, background: '#f7f1de', padding: 9, boxShadow: '0 22px 44px -22px rgba(40,36,16,.6)' }}>
+            <figure className="hero-figure-float" style={{ margin: 0, position: 'absolute', bottom: -46, left: -6, width: '48%', minWidth: 170, border: `1px solid ${INK}`, background: '#f7f1de', padding: 9, boxShadow: '0 22px 44px -22px rgba(40,36,16,.6)' }}>
               <div style={{ background: '#ece3c8', overflow: 'hidden' }}>
                 <Pic src="/images/cut-paris.png" alt="Papilio paris" style={{ width: '100%', aspectRatio: '1/.82', objectFit: 'contain' }} />
               </div>
@@ -220,7 +274,7 @@ export default function ButterflyPage() {
             ['100%', 'Tiêu bản thật, bảo quản và đóng khung thủ công.'],
             ['2019', 'Năm All About Butterfly bắt đầu hành trình.'],
           ].map(([num, desc], i) => (
-            <div key={num} style={{ padding: 'clamp(30px,3vw,46px) 26px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(54,50,24,.16)' : undefined }}>
+            <div key={num} className="stat-item" style={{ padding: 'clamp(30px,3vw,46px) 26px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(54,50,24,.16)' : undefined }}>
               <div className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(40px,4.6vw,60px)', color: INK, lineHeight: 1 }}>{num}</div>
               <p style={{ fontSize: 13, lineHeight: 1.55, color: '#5b5736', maxWidth: 220, margin: '14px auto 0' }}>{desc}</p>
             </div>
@@ -243,7 +297,7 @@ export default function ButterflyPage() {
 
         {/* FILTER BAR */}
         <div style={{ border: '1px solid #ddd0ab', borderRadius: 7, background: '#f7f1de', display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', boxShadow: '0 8px 22px -18px rgba(40,36,16,.5)' }}>
-          <div style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '0 0 auto' }}>
+          <div className="filter-section" style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '0 0 auto' }}>
             <div style={{ fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase', fontWeight: 600, color: '#8a7630', marginBottom: 12 }}>Sắp xếp theo</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button onClick={setPopular} className="sort-btn" style={{ appearance: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500, letterSpacing: '.04em', padding: '8px 16px', borderRadius: 20, whiteSpace: 'nowrap', background: isPop ? INK : 'transparent', color: isPop ? INK_FG : IDLE_FG, border: `1px solid ${isPop ? INK : BORDER}` }}>
@@ -254,7 +308,7 @@ export default function ButterflyPage() {
               </button>
             </div>
           </div>
-          <div style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '1 1 440px', minWidth: 280 }}>
+          <div className="filter-section" style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '1 1 440px', minWidth: 280 }}>
             <div style={{ fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase', fontWeight: 600, color: '#8a7630', marginBottom: 12 }}>Lọc theo loại</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {TYPE_DEFS.map(([key, label]) => {
@@ -267,7 +321,7 @@ export default function ButterflyPage() {
               })}
             </div>
           </div>
-          <div style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '0 0 auto' }}>
+          <div className="filter-section" style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '0 0 auto' }}>
             <div style={{ fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase', fontWeight: 600, color: '#8a7630', marginBottom: 12 }}>Lọc theo màu</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,30px)', gap: 9 }}>
               {COLOUR_DEFS.map(([key, hex]) => {
@@ -278,7 +332,7 @@ export default function ButterflyPage() {
               })}
             </div>
           </div>
-          <div style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '1 1 230px', minWidth: 210 }}>
+          <div className="filter-section" style={{ padding: '18px 22px', borderRight: '1px solid #e7dcbe', flex: '1 1 230px', minWidth: 210 }}>
             <div style={{ fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase', fontWeight: 600, color: '#8a7630', marginBottom: 12 }}>Tìm một loài bướm</div>
             <form onSubmit={(e: FormEvent) => e.preventDefault()} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="vd: bướm xanh Morpho" style={{ width: '100%', border: `1px solid ${BORDER}`, background: '#fdfaef', borderRadius: 22, padding: '10px 42px 10px 16px', fontSize: 13, color: '#3a3620', outline: 'none' }} />
@@ -287,7 +341,7 @@ export default function ButterflyPage() {
               </button>
             </form>
           </div>
-          <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 9, flex: '0 0 auto' }}>
+          <div className="filter-section" style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 9, flex: '0 0 auto' }}>
             <button onClick={resetAll} aria-label="Đặt lại" className="reset-btn" style={{ width: 42, height: 42, borderRadius: '50%', border: `1px solid ${BORDER}`, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b5224" strokeWidth={1.8}><path d="M3.5 12a8.5 8.5 0 1 1 2.4 5.9" /><polyline points="3 21 3 16 8 16" /></svg>
             </button>
@@ -414,8 +468,8 @@ export default function ButterflyPage() {
 
       {/* CLOSING / CONTACT */}
       <section id="lien-he" style={{ maxWidth: 1180, margin: '0 auto', padding: 'clamp(56px,7vw,110px) clamp(20px,5vw,64px)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(12px,3vw,50px)' }}>
-          <Pic src="/images/flank-ulysses.png" alt="Papilio ulysses" style={{ flex: '0 0 auto', width: 'clamp(120px,17vw,280px)', height: 'auto', filter: 'drop-shadow(0 22px 30px rgba(40,36,16,.22))', animation: 'drift 8s ease-in-out infinite' }} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 'clamp(12px,3vw,50px)' }}>
+          <Pic src="/images/flank-ulysses.png" alt="Papilio ulysses" className="flank-img" style={{ flex: '0 0 auto', width: 'clamp(120px,17vw,280px)', height: 'auto', filter: 'drop-shadow(0 22px 30px rgba(40,36,16,.22))', animation: 'drift 8s ease-in-out infinite' }} />
           <div style={{ textAlign: 'center', maxWidth: 440 }}>
             <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '.26em', textTransform: 'uppercase', color: '#8a7630', marginBottom: 20 }}>All About Butterfly</div>
             <h2 className="font-display" style={{ fontWeight: 500, fontSize: 'clamp(28px,4vw,46px)', color: '#2c2a16', margin: '0 0 28px', lineHeight: 1.12 }}>Mỗi đôi cánh là một vòng đời được giữ lại.</h2>
@@ -424,7 +478,7 @@ export default function ButterflyPage() {
               <a href="https://shopee.vn/allaboutbutterfly" target="_blank" rel="noopener" className="contact-secondary" style={{ border: `1px solid ${BORDER}`, color: '#2c2a16', padding: '15px 30px', borderRadius: 2, fontSize: 12, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase' }}>Đặt mua trên Shopee</a>
             </div>
           </div>
-          <Pic src="/images/flank-archaeo.png" alt="Archaeoprepona meander" style={{ flex: '0 0 auto', width: 'clamp(120px,17vw,280px)', height: 'auto', filter: 'drop-shadow(0 22px 30px rgba(40,36,16,.22))', animation: 'drift 9s ease-in-out infinite' }} />
+          <Pic src="/images/flank-archaeo.png" alt="Archaeoprepona meander" className="flank-img" style={{ flex: '0 0 auto', width: 'clamp(120px,17vw,280px)', height: 'auto', filter: 'drop-shadow(0 22px 30px rgba(40,36,16,.22))', animation: 'drift 9s ease-in-out infinite' }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: 760, margin: '18px auto 0', fontSize: 10.5, letterSpacing: '.18em', textTransform: 'uppercase', color: '#a99a68' }}>
           <span>Papilio ulysses</span><span>Archaeoprepona meander</span>
