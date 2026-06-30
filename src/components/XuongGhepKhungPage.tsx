@@ -141,25 +141,24 @@ export default function XuongGhepKhungPage() {
     const b = BFLY.find((x) => x.key === key);
     if (!b) return;
     const cap = capFor(size);
+    if (cap !== 1 && items.length >= cap) return;
     const dw = dwFor(orient, size);
     const ar0 = arCache.current[key] || 0.62;
-    setItems((cur) => {
-      let next = cur.slice();
-      if (cap === 1) next = [];
-      else if (next.length >= cap) return cur;
-      const n = next.length;
-      const uid = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-      let x = 50, y = 50;
-      if (cap === 2) {
-        if (orient === 'portrait') { x = 50; y = n === 0 ? 32 : 68; }
-        else { x = n === 0 ? 29 : 71; y = 50; }
-      }
-      const maxByLayout = cap === 1 ? dw * 0.9 : (orient === 'portrait' ? dw * 0.84 : dw * 0.46);
-      const wcm = Math.min(b.wsp, maxByLayout);
-      next.push({ uid, key: b.key, vn: b.vn, src: b.src, x, y, wcm, rot: 0, flip: 1, ar: ar0 });
-      setSel(uid);
-      return next;
-    });
+    // Generate the uid once, outside the state updater — React (Strict Mode,
+    // in particular) can invoke updater functions more than once, and a
+    // random id regenerated on each invocation desyncs items/sel.
+    const uid = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const base = cap === 1 ? [] : items;
+    const n = base.length;
+    let x = 50, y = 50;
+    if (cap === 2) {
+      if (orient === 'portrait') { x = 50; y = n === 0 ? 32 : 68; }
+      else { x = n === 0 ? 29 : 71; y = 50; }
+    }
+    const maxByLayout = cap === 1 ? dw * 0.9 : (orient === 'portrait' ? dw * 0.84 : dw * 0.46);
+    const wcm = Math.min(b.wsp, maxByLayout);
+    setItems([...base, { uid, key: b.key, vn: b.vn, src: b.src, x, y, wcm, rot: 0, flip: 1, ar: ar0 }]);
+    setSel(uid);
     if (!arCache.current[key]) {
       loadImg(b.src).then((img) => {
         const ar = img.naturalHeight / img.naturalWidth;
@@ -356,31 +355,62 @@ export default function XuongGhepKhungPage() {
                   <div ref={innerRef} onPointerDown={() => setSel(null)} style={innerStyle}>
                     <PaperLayer src={activePaper.src} gradient={activePaper.gradient} />
                     <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: 'none', background: 'linear-gradient(128deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.045) 17%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 73%, rgba(255,255,255,.05) 100%)' }} />
-                    {items.map((it, i) => (
-                      <div
-                        key={it.uid}
-                        onPointerDown={(e) => {
-                          e.stopPropagation(); e.preventDefault();
-                          const r = innerRef.current!.getBoundingClientRect();
-                          const px = ((e.clientX - r.left) / r.width) * 100;
-                          const py = ((e.clientY - r.top) / r.height) * 100;
-                          dragRef.current = { uid: it.uid, dx: it.x - px, dy: it.y - py };
-                          document.body.style.cursor = 'grabbing';
-                          setSel(it.uid);
-                        }}
-                        style={{
-                          position: 'absolute', left: it.x + '%', top: it.y + '%', width: (it.wcm / dispW) * 100 + '%',
-                          aspectRatio: `1 / ${it.ar || 0.62}`,
-                          backgroundImage: `url("${it.src}")`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
-                          transform: `translate(-50%,-50%) rotate(${it.rot}deg) scaleX(${it.flip})`,
-                          cursor: 'grab', touchAction: 'none', userSelect: 'none',
-                          zIndex: it.uid === sel ? 40 : 10 + i,
-                          filter: 'drop-shadow(0 14px 18px rgba(40,30,12,.34))',
-                          outline: it.uid === sel ? '2px dashed rgba(90,74,28,.8)' : 'none',
-                          outlineOffset: 4,
-                        }}
-                      />
-                    ))}
+                    {items.map((it, i) => {
+                      const isSel = it.uid === sel;
+                      return (
+                        <div
+                          key={it.uid}
+                          style={{
+                            position: 'absolute', left: it.x + '%', top: it.y + '%', width: (it.wcm / dispW) * 100 + '%',
+                            aspectRatio: `1 / ${it.ar || 0.62}`,
+                            transform: 'translate(-50%,-50%)',
+                            zIndex: isSel ? 40 : 10 + i,
+                          }}
+                        >
+                          <div
+                            onPointerDown={(e) => {
+                              e.stopPropagation(); e.preventDefault();
+                              const r = innerRef.current!.getBoundingClientRect();
+                              const px = ((e.clientX - r.left) / r.width) * 100;
+                              const py = ((e.clientY - r.top) / r.height) * 100;
+                              dragRef.current = { uid: it.uid, dx: it.x - px, dy: it.y - py };
+                              document.body.style.cursor = 'grabbing';
+                              setSel(it.uid);
+                            }}
+                            style={{
+                              position: 'absolute', inset: 0,
+                              backgroundImage: `url("${it.src}")`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
+                              transform: `rotate(${it.rot}deg) scaleX(${it.flip})`,
+                              cursor: 'grab', touchAction: 'none', userSelect: 'none',
+                              filter: 'drop-shadow(0 14px 18px rgba(40,30,12,.34))',
+                              outline: isSel ? '2px dashed rgba(90,74,28,.8)' : 'none',
+                              outlineOffset: 4,
+                            }}
+                          />
+                          {isSel && (
+                            <button
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setItems((cur) => cur.filter((x) => x.uid !== it.uid));
+                                setSel(null);
+                              }}
+                              aria-label={`Xoá ${it.vn}`}
+                              style={{
+                                appearance: 'none', position: 'absolute', top: -12, right: -12, zIndex: 50,
+                                width: 30, height: 30, borderRadius: '50%',
+                                background: '#a85a40', color: '#fff', border: '2px solid #f7f1de',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', boxShadow: '0 4px 12px -2px rgba(0,0,0,.45)',
+                                touchAction: 'none',
+                              }}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path d="M5 5l14 14M19 5L5 19" /></svg>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                     {items.length === 0 && (
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 24, pointerEvents: 'none', color: '#9a8f63' }}>
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#b3a571" strokeWidth={1.3} style={{ marginBottom: 12 }}>
