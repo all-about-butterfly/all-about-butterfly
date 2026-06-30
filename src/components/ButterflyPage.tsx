@@ -2,12 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Pic } from './Pic';
+import { SiteHeader } from './SiteHeader';
 import { SPECIES, TYPE_DEFS, COLOUR_DEFS, vibeFor, type Species } from '@/data/species';
-
-const INK = '#363218';
-const INK_FG = '#f1e9d2';
-const BORDER = '#c7ba94';
-const IDLE_FG = '#4a4628';
+import { INK, INK_FG, BORDER, IDLE_FG } from '@/lib/theme';
 
 const TRAITS = [
   { n: '01', title: 'Rực rỡ', desc: 'Sắc màu sặc sỡ, hoa văn táo bạo — những loài sinh ra để toả sáng và được chiêm ngưỡng.' },
@@ -79,7 +76,6 @@ export default function ButterflyPage() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [shuffleOrder, setShuffleOrder] = useState<string[]>([]);
   const [selected, setSelected] = useState<Species | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
@@ -160,61 +156,7 @@ export default function ButterflyPage() {
       </div>
 
       {/* HEADER */}
-      <header style={{ position: 'sticky', top: 0, zIndex: 90, background: 'rgba(241,233,210,.92)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #ddd2af' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '14px clamp(20px,5vw,64px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24 }}>
-          <a href="#top" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Pic src="/images/mark-ink.png" alt="All About Butterfly" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-            <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-              <span className="font-display" style={{ fontWeight: 600, fontSize: 21, color: '#2c2a16', letterSpacing: '.01em' }}>
-                All About <span style={{ fontStyle: 'italic' }}>Butterfly</span>
-              </span>
-              <span style={{ fontSize: 9.5, letterSpacing: '.34em', textTransform: 'uppercase', color: '#9a8a52', marginTop: 3 }}>ETSD · 2019</span>
-            </span>
-          </a>
-          <nav className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: 30, fontSize: 13, letterSpacing: '.05em', color: '#4a4628' }}>
-            <a href="#bo-suu-tap" className="nav-link" style={{ padding: '6px 0' }}>Bộ sưu tập</a>
-            <a href="#dac-diem" className="nav-link" style={{ padding: '6px 0' }}>Đặc điểm</a>
-            <a href="#ve-chung-toi" className="nav-link" style={{ padding: '6px 0' }}>Về chúng tôi</a>
-          </nav>
-          <a href="#lien-he" className="btn-fill header-cta" style={{ background: INK, color: INK_FG, padding: '12px 22px', borderRadius: 2, fontSize: 11.5, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase' }}>
-            Liên hệ đặt mua
-          </a>
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}
-            aria-expanded={menuOpen}
-            className="menu-toggle"
-            style={{ appearance: 'none', cursor: 'pointer', background: 'transparent', border: `1px solid ${BORDER}`, borderRadius: 4, width: 42, height: 42, flex: '0 0 auto' }}
-          >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={1.8} style={{ display: 'block', margin: '0 auto' }}>
-              {menuOpen ? (
-                <path d="M5 5l14 14M19 5L5 19" />
-              ) : (
-                <>
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </>
-              )}
-            </svg>
-          </button>
-        </div>
-        {menuOpen && (
-          <nav className="mobile-menu">
-            <a href="#bo-suu-tap" onClick={() => setMenuOpen(false)}>Bộ sưu tập</a>
-            <a href="#dac-diem" onClick={() => setMenuOpen(false)}>Đặc điểm</a>
-            <a href="#ve-chung-toi" onClick={() => setMenuOpen(false)}>Về chúng tôi</a>
-            <a
-              href="#lien-he"
-              onClick={() => setMenuOpen(false)}
-              className="btn-fill"
-              style={{ background: INK, color: INK_FG, textAlign: 'center', padding: '12px 22px', borderRadius: 2, fontSize: 11.5, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase', marginTop: 8 }}
-            >
-              Liên hệ đặt mua
-            </a>
-          </nav>
-        )}
-      </header>
+      <SiteHeader current="home" />
 
       <a id="top" />
 
