@@ -26,18 +26,23 @@ const WOOD = {
   grain: '#1f1305', edge: '#160d04', hi: 'rgba(255,236,205,.42)',
 };
 
-function dimsFor(size: Size): [number, number] {
-  return size === '13x15' ? [13, 15] : [15, 21];
-}
-function dwFor(orient: Orient, size: Size): number {
-  const [w, h] = dimsFor(size);
-  return orient === 'portrait' ? w : h;
-}
 function capFor(size: Size): number {
   return size === '13x15' ? 1 : 2;
 }
-function clampW(items: Item[], dw: number): Item[] {
-  return items.map((it) => ({ ...it, wcm: Math.min(it.wcm, dw) }));
+function dispDimsFor(orient: Orient): [number, number] {
+  return orient === 'landscape' ? [21, 15] : [15, 21];
+}
+// Max width (display-cm) a butterfly can have without spilling out of its
+// slot. Constrains BOTH width and height (via the image's own aspect ratio)
+// — a width-only cap lets large or tall-winged species (Morpho, Luna) bleed
+// into the other slot in either orientation, which is what made them
+// effectively "only fit one" before.
+function slotMaxWidth(cap: number, orient: Orient, dispW: number, dispH: number, ar: number): number {
+  const [wFrac, hFrac] = cap === 1 ? [0.88, 0.88] : orient === 'portrait' ? [0.84, 0.3] : [0.34, 0.84];
+  return Math.min(dispW * wFrac, (dispH * hFrac) / ar);
+}
+function clampItems(items: Item[], cap: number, orient: Orient, dispW: number, dispH: number): Item[] {
+  return items.map((it) => ({ ...it, wcm: Math.min(it.wcm, slotMaxWidth(cap, orient, dispW, dispH, it.ar || 0.62)) }));
 }
 function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -142,7 +147,7 @@ export default function XuongGhepKhungPage() {
     if (!b) return;
     const cap = capFor(size);
     if (cap !== 1 && items.length >= cap) return;
-    const dw = dwFor(orient, size);
+    const [dW, dH] = dispDimsFor(orient);
     const ar0 = arCache.current[key] || 0.62;
     // Generate the uid once, outside the state updater — React (Strict Mode,
     // in particular) can invoke updater functions more than once, and a
@@ -155,15 +160,18 @@ export default function XuongGhepKhungPage() {
       if (orient === 'portrait') { x = 50; y = n === 0 ? 32 : 68; }
       else { x = n === 0 ? 29 : 71; y = 50; }
     }
-    const maxByLayout = cap === 1 ? dw * 0.9 : (orient === 'portrait' ? dw * 0.84 : dw * 0.46);
-    const wcm = Math.min(b.wsp, maxByLayout);
+    const wcm = Math.min(b.wsp, slotMaxWidth(cap, orient, dW, dH, ar0));
     setItems([...base, { uid, key: b.key, vn: b.vn, src: b.src, x, y, wcm, rot: 0, flip: 1, ar: ar0 }]);
     setSel(uid);
     if (!arCache.current[key]) {
       loadImg(b.src).then((img) => {
         const ar = img.naturalHeight / img.naturalWidth;
         arCache.current[key] = ar;
-        setItems((cur) => cur.map((it) => (it.key === key ? { ...it, ar } : it)));
+        // The real aspect ratio can differ from the 0.62 fallback used above
+        // (e.g. Luna's elongated wings) — re-clamp now that it's known, so
+        // the slot constraint actually holds once the photo is in.
+        const max = slotMaxWidth(cap, orient, dW, dH, ar);
+        setItems((cur) => cur.map((it) => (it.key === key ? { ...it, ar, wcm: Math.min(it.wcm, max) } : it)));
       }).catch(() => {});
     }
   }
@@ -174,20 +182,18 @@ export default function XuongGhepKhungPage() {
 
   function setSizeAndClamp(next: Size) {
     setSize(next);
-    const dw = dwFor(orient, next);
-    if (next === '13x15') {
-      setItems((cur) => {
-        const kept = clampW(cur.slice(0, 1), dw);
-        setSel(kept[0] ? kept[0].uid : null);
-        return kept;
-      });
-    } else {
-      setItems((cur) => clampW(cur, dw));
-    }
+    const cap = capFor(next);
+    const [dW, dH] = dispDimsFor(orient);
+    const kept = cap === 1 ? items.slice(0, 1) : items;
+    const clamped = clampItems(kept, cap, orient, dW, dH);
+    setItems(clamped);
+    if (cap === 1) setSel(clamped[0] ? clamped[0].uid : null);
   }
   function setOrientAndClamp(next: Orient) {
     setOrient(next);
-    setItems((cur) => clampW(cur, dwFor(next, size)));
+    const cap = capFor(size);
+    const [dW, dH] = dispDimsFor(next);
+    setItems(clampItems(items, cap, next, dW, dH));
   }
 
   async function download() {
@@ -301,6 +307,7 @@ export default function XuongGhepKhungPage() {
   const cap = capFor(size);
   const [dispW, dispH] = orient === 'landscape' ? [21, 15] : [15, 21];
   const selected = items.find((it) => it.uid === sel) || null;
+  const selMaxW = selected ? slotMaxWidth(cap, orient, dispW, dispH, selected.ar || 0.62) : dispW;
   const capLabel = items.length >= cap ? `Đã đủ ${cap} bướm` : items.length === 0 ? `Còn ${cap} chỗ` : `${items.length}/${cap} bướm`;
   const innerH = orient === 'landscape' ? 'clamp(240px, 36vh, 340px)' : 'clamp(320px, 50vh, 470px)';
   const activePaper = PAPERS.find((p) => p.key === paper)!;
@@ -503,7 +510,7 @@ export default function XuongGhepKhungPage() {
                   <span style={{ letterSpacing: '.1em', textTransform: 'uppercase' }}>Sải cánh thật</span>
                   <span>{selected.wcm.toFixed(1).replace('.', ',')} cm</span>
                 </div>
-                <input type="range" min={2} max={dispW} step={0.5} value={selected.wcm} onChange={(e) => patchSel({ wcm: +e.target.value })} style={{ width: '100%' }} />
+                <input type="range" min={2} max={Math.max(2, selMaxW)} step={0.5} value={selected.wcm} onChange={(e) => patchSel({ wcm: +e.target.value })} style={{ width: '100%' }} />
               </div>
               <div style={{ marginBottom: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: '#7d7448', marginBottom: 7 }}>
