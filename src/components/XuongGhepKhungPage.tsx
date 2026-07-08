@@ -53,7 +53,7 @@ function loadImg(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function PaperImg({ src }: { src: string }) {
+function PaperImg({ src, landscape }: { src: string; landscape?: boolean }) {
   const [broken, setBroken] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -65,25 +65,32 @@ function PaperImg({ src }: { src: string }) {
     }
   }, []);
   if (broken) return null;
+  // Landscape frame has display ratio 21:15. To make a portrait paper image fill
+  // it naturally (matching the paper's top/bottom borders with the frame's left/right),
+  // rotate it 90°. Sizing trick: pre-rotation width = containerH = 100%×(15/21),
+  // height = containerW = 100%. After rotating 90°: visual width = containerW,
+  // visual height = containerH — exactly fills the landscape frame.
+  const imgStyle: CSSProperties = landscape ? {
+    position: 'absolute', top: '50%', left: '50%',
+    width: `${(15 / 21 * 100).toFixed(4)}%`, height: '100%',
+    transform: 'translate(-50%,-50%) rotate(90deg)',
+    objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity .2s ease',
+  } : {
+    position: 'absolute', inset: 0, width: '100%', height: '100%',
+    objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity .2s ease',
+  };
   return (
-    <img
-      ref={imgRef}
-      src={src}
-      alt=""
-      onLoad={() => setLoaded(true)}
-      onError={() => setBroken(true)}
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity .2s ease' }}
-    />
+    <img ref={imgRef} src={src} alt="" onLoad={() => setLoaded(true)} onError={() => setBroken(true)} style={imgStyle} />
   );
 }
 
-function PaperLayer({ src, gradient, style }: { src: string; gradient: string; style?: CSSProperties }) {
+function PaperLayer({ src, gradient, landscape, style }: { src: string; gradient: string; landscape?: boolean; style?: CSSProperties }) {
   return (
     <div style={{ position: 'absolute', inset: 0, background: gradient, overflow: 'hidden', ...style }}>
-      {/* key={src} forces a fresh mount per paper so a 404'd image (e.g. the
-          default) can't leave a stale "broken" state stuck for every paper
-          picked afterwards. */}
-      <PaperImg key={src} src={src} />
+      {/* key resets broken/loaded state both when src changes AND when
+          orientation changes (portrait paper rotated into landscape is a
+          different visual experience, so we fade it in fresh). */}
+      <PaperImg key={src + (landscape ? '-l' : '')} src={src} landscape={landscape} />
     </div>
   );
 }
@@ -146,31 +153,33 @@ export default function XuongGhepKhungPage() {
     const b = BFLY.find((x) => x.key === key);
     if (!b) return;
     const cap = capFor(size);
-    if (cap !== 1 && items.length >= cap) return;
+    // Morpho's 15 cm wingspan fills the entire frame alone — it can't share
+    // space with another butterfly in either frame size, so we always treat
+    // it as a solo-only slot (effectiveCap = 1) regardless of the frame's
+    // nominal capacity.
+    const effectiveCap = (key === 'morpho' || items.some((it) => it.key === 'morpho')) ? 1 : cap;
+    if (effectiveCap !== 1 && items.length >= effectiveCap) return;
     const [dW, dH] = dispDimsFor(orient);
     const ar0 = arCache.current[key] || 0.62;
     // Generate the uid once, outside the state updater — React (Strict Mode,
     // in particular) can invoke updater functions more than once, and a
     // random id regenerated on each invocation desyncs items/sel.
     const uid = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    const base = cap === 1 ? [] : items;
+    const base = effectiveCap === 1 ? [] : items;
     const n = base.length;
     let x = 50, y = 50;
-    if (cap === 2) {
+    if (effectiveCap === 2) {
       if (orient === 'portrait') { x = 50; y = n === 0 ? 32 : 68; }
       else { x = n === 0 ? 29 : 71; y = 50; }
     }
-    const wcm = Math.min(b.wsp, slotMaxWidth(cap, orient, dW, dH, ar0));
+    const wcm = Math.min(b.wsp, slotMaxWidth(effectiveCap, orient, dW, dH, ar0));
     setItems([...base, { uid, key: b.key, vn: b.vn, src: b.src, x, y, wcm, rot: 0, flip: 1, ar: ar0 }]);
     setSel(uid);
     if (!arCache.current[key]) {
       loadImg(b.src).then((img) => {
         const ar = img.naturalHeight / img.naturalWidth;
         arCache.current[key] = ar;
-        // The real aspect ratio can differ from the 0.62 fallback used above
-        // (e.g. Luna's elongated wings) — re-clamp now that it's known, so
-        // the slot constraint actually holds once the photo is in.
-        const max = slotMaxWidth(cap, orient, dW, dH, ar);
+        const max = slotMaxWidth(effectiveCap, orient, dW, dH, ar);
         setItems((cur) => cur.map((it) => (it.key === key ? { ...it, ar, wcm: Math.min(it.wcm, max) } : it)));
       }).catch(() => {});
     }
@@ -307,8 +316,9 @@ export default function XuongGhepKhungPage() {
   const cap = capFor(size);
   const [dispW, dispH] = orient === 'landscape' ? [21, 15] : [15, 21];
   const selected = items.find((it) => it.uid === sel) || null;
-  const selMaxW = selected ? slotMaxWidth(cap, orient, dispW, dispH, selected.ar || 0.62) : dispW;
-  const capLabel = items.length >= cap ? `Đã đủ ${cap} bướm` : items.length === 0 ? `Còn ${cap} chỗ` : `${items.length}/${cap} bướm`;
+  const effectiveCap = items.some((it) => it.key === 'morpho') ? 1 : cap;
+  const selMaxW = selected ? slotMaxWidth(effectiveCap, orient, dispW, dispH, selected.ar || 0.62) : dispW;
+  const capLabel = items.length >= effectiveCap ? `Đã đủ ${effectiveCap} bướm` : items.length === 0 ? `Còn ${effectiveCap} chỗ` : `${items.length}/${effectiveCap} bướm`;
   const innerH = orient === 'landscape' ? 'clamp(240px, 36vh, 340px)' : 'clamp(320px, 50vh, 470px)';
   const activePaper = PAPERS.find((p) => p.key === paper)!;
 
@@ -360,7 +370,7 @@ export default function XuongGhepKhungPage() {
               <div style={frameStyle}>
                 <div style={bevelStyle}>
                   <div ref={innerRef} onPointerDown={() => setSel(null)} style={innerStyle}>
-                    <PaperLayer src={activePaper.src} gradient={activePaper.gradient} />
+                    <PaperLayer src={activePaper.src} gradient={activePaper.gradient} landscape={orient === 'landscape'} />
                     <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: 'none', background: 'linear-gradient(128deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.045) 17%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 73%, rgba(255,255,255,.05) 100%)' }} />
                     {items.map((it, i) => {
                       const isSel = it.uid === sel;

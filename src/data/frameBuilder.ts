@@ -17,7 +17,7 @@ export type Butterfly = { key: string; vn: string; src: string; wsp: number };
 
 // True wingspan in cm — drives real-scale sizing on the frame canvas.
 const WSP: Record<string, number> = {
-  morpho: 13, ulysses: 12, paris: 9.5, maackii: 12, chrysiridia: 8.5, luna: 10.5,
+  morpho: 15, ulysses: 12, paris: 9.5, maackii: 12, chrysiridia: 8.5, luna: 10.5,
   urania: 8, archaeo: 10, mimathyma: 9, hebomoia: 9.5, sarpedon: 8, doson: 7.5,
   antiphates: 9, genutia: 8.5, chrysippus: 7.5, parantica: 7.5, hollyblue: 3.3,
 };
