@@ -13,7 +13,7 @@ export const PAPERS: Paper[] = [
   { key: 'tron', label: 'Trơn vintage', src: '/images/paper/tron.jpg', gradient: 'linear-gradient(135deg,#ece3cd,#d9cdab)' },
 ];
 
-export type Butterfly = { key: string; vn: string; src: string; wsp: number };
+export type Butterfly = { key: string; vn: string; src: string; wsp: number; occupiesFullFrame?: boolean };
 
 // True wingspan in cm — drives real-scale sizing on the frame canvas.
 const WSP: Record<string, number> = {
@@ -22,9 +22,11 @@ const WSP: Record<string, number> = {
   antiphates: 9, genutia: 8.5, chrysippus: 7.5, parantica: 7.5, hollyblue: 3.3,
 };
 
+const FULL_FRAME = new Set(['morpho']);
+
 export const BFLY: Butterfly[] = Object.entries(WSP).map(([key, wsp]) => {
   const s = SPECIES.find((sp) => sp.id === key)!;
-  return { key, vn: s.vn, src: s.img, wsp };
+  return { key, vn: s.vn, src: s.img, wsp, ...(FULL_FRAME.has(key) && { occupiesFullFrame: true }) };
 });
 
 export const FRAME_GALLERY: { src: string; alt: string }[] = [

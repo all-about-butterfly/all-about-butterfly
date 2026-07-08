@@ -16,6 +16,7 @@ type Item = {
   rot: number;
   flip: 1 | -1;
   ar: number;
+  occupiesFullFrame?: boolean;
 };
 
 type Size = '13x15' | '15x21';
@@ -53,7 +54,9 @@ function loadImg(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function PaperImg({ src, landscape }: { src: string; landscape?: boolean }) {
+// Pure image component — loads image with graceful fallback, no rotation.
+// Rotation is handled by the PaperLayer wrapper so this stays composable.
+function PaperImg({ src }: { src: string }) {
   const [broken, setBroken] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -65,32 +68,48 @@ function PaperImg({ src, landscape }: { src: string; landscape?: boolean }) {
     }
   }, []);
   if (broken) return null;
-  // Landscape frame has display ratio 21:15. To make a portrait paper image fill
-  // it naturally (matching the paper's top/bottom borders with the frame's left/right),
-  // rotate it 90°. Sizing trick: pre-rotation width = containerH = 100%×(15/21),
-  // height = containerW = 100%. After rotating 90°: visual width = containerW,
-  // visual height = containerH — exactly fills the landscape frame.
-  const imgStyle: CSSProperties = landscape ? {
-    position: 'absolute', top: '50%', left: '50%',
-    width: `${(15 / 21 * 100).toFixed(4)}%`, height: '100%',
-    transform: 'translate(-50%,-50%) rotate(90deg)',
-    objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity .2s ease',
-  } : {
-    position: 'absolute', inset: 0, width: '100%', height: '100%',
-    objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity .2s ease',
-  };
   return (
-    <img ref={imgRef} src={src} alt="" onLoad={() => setLoaded(true)} onError={() => setBroken(true)} style={imgStyle} />
+    <img
+      ref={imgRef}
+      src={src}
+      alt=""
+      onLoad={() => setLoaded(true)}
+      onError={() => setBroken(true)}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity .2s ease' }}
+    />
   );
 }
 
 function PaperLayer({ src, gradient, landscape, style }: { src: string; gradient: string; landscape?: boolean; style?: CSSProperties }) {
   return (
     <div style={{ position: 'absolute', inset: 0, background: gradient, overflow: 'hidden', ...style }}>
-      {/* key resets broken/loaded state both when src changes AND when
-          orientation changes (portrait paper rotated into landscape is a
-          different visual experience, so we fade it in fresh). */}
-      <PaperImg key={src + (landscape ? '-l' : '')} src={src} landscape={landscape} />
+      {landscape ? (
+        // Display ratio landscape = 21:15. Rotate the portrait paper 90° so
+        // text/patterns appear upright inside the landscape frame.
+        //
+        // Geometry: the rotating inner div must be sized at (H × W) — portrait
+        // dimensions — so after rotating 90° it visually fills exactly (W × H).
+        //
+        //   width  = H/W × 100% of container-width  = 15/21 × 100% ≈ 71.43%
+        //   height = W/H × 100% of container-height = 21/15 × 100% = 140%
+        //
+        // translate(-50%,-50%) centers the div, then rotate(90deg) fills the
+        // landscape container edge-to-edge with no gaps.
+        <div
+          key={src + '-l'}
+          style={{
+            position: 'absolute', top: '50%', left: '50%',
+            width: `${(15 / 21 * 100).toFixed(4)}%`,
+            height: `${(21 / 15 * 100).toFixed(4)}%`,
+            transform: 'translate(-50%,-50%) rotate(90deg)',
+            transformOrigin: 'center center',
+          }}
+        >
+          <PaperImg key={src} src={src} />
+        </div>
+      ) : (
+        <PaperImg key={src} src={src} />
+      )}
     </div>
   );
 }
@@ -157,7 +176,7 @@ export default function XuongGhepKhungPage() {
     // space with another butterfly in either frame size, so we always treat
     // it as a solo-only slot (effectiveCap = 1) regardless of the frame's
     // nominal capacity.
-    const effectiveCap = (key === 'morpho' || items.some((it) => it.key === 'morpho')) ? 1 : cap;
+    const effectiveCap = (b.occupiesFullFrame || items.some((it) => it.occupiesFullFrame)) ? 1 : cap;
     if (effectiveCap !== 1 && items.length >= effectiveCap) return;
     const [dW, dH] = dispDimsFor(orient);
     const ar0 = arCache.current[key] || 0.62;
@@ -173,7 +192,7 @@ export default function XuongGhepKhungPage() {
       else { x = n === 0 ? 29 : 71; y = 50; }
     }
     const wcm = Math.min(b.wsp, slotMaxWidth(effectiveCap, orient, dW, dH, ar0));
-    setItems([...base, { uid, key: b.key, vn: b.vn, src: b.src, x, y, wcm, rot: 0, flip: 1, ar: ar0 }]);
+    setItems([...base, { uid, key: b.key, vn: b.vn, src: b.src, x, y, wcm, rot: 0, flip: 1, ar: ar0, occupiesFullFrame: b.occupiesFullFrame }]);
     setSel(uid);
     if (!arCache.current[key]) {
       loadImg(b.src).then((img) => {
@@ -316,7 +335,7 @@ export default function XuongGhepKhungPage() {
   const cap = capFor(size);
   const [dispW, dispH] = orient === 'landscape' ? [21, 15] : [15, 21];
   const selected = items.find((it) => it.uid === sel) || null;
-  const effectiveCap = items.some((it) => it.key === 'morpho') ? 1 : cap;
+  const effectiveCap = items.some((it) => it.occupiesFullFrame) ? 1 : cap;
   const selMaxW = selected ? slotMaxWidth(effectiveCap, orient, dispW, dispH, selected.ar || 0.62) : dispW;
   const capLabel = items.length >= effectiveCap ? `Đã đủ ${effectiveCap} bướm` : items.length === 0 ? `Còn ${effectiveCap} chỗ` : `${items.length}/${effectiveCap} bướm`;
   const innerH = orient === 'landscape' ? 'clamp(240px, 36vh, 340px)' : 'clamp(320px, 50vh, 470px)';
